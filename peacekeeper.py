@@ -7,6 +7,7 @@ import time
 import aiohttp
 import os
 from dotenv import load_dotenv
+from datetime import datetime
 
 # Load environment variables from .env
 load_dotenv()
@@ -25,6 +26,9 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 shared_message_log = deque(maxlen=MESSAGE_LIMIT)
 
+user_last_messages = defaultdict(list)
+
+
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
@@ -34,15 +38,25 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    if message.author.id in MONITORED_USERS:
-        now = time.time()
-        shared_message_log.append(now)
+    now = time.time()
 
-        # Check if the oldest message is still within the window
-        if len(shared_message_log) >= MESSAGE_LIMIT and now - shared_message_log[0] <= TIME_WINDOW:
+    if message.author.id in MONITORED_USERS:
+        user_last_messages[message.author.id].append(now)
+
+        # Clean up old messages outside the time window
+        for user_id in MONITORED_USERS:
+            user_last_messages[user_id] = [
+                ts for ts in user_last_messages[user_id] if now - ts <= TIME_WINDOW
+            ]
+
+        # Check if all users have at least one recent message
+        if all(len(user_last_messages[user_id]) > 0 for user_id in MONITORED_USERS):
             await message.channel.send("🛡️ Peacekeeper activated!")
             await spam_channel_with_tenor_gifs(message.channel)
-            shared_message_log.clear()
+
+            # Clear logs to prevent immediate retrigger
+            for user_id in MONITORED_USERS:
+                user_last_messages[user_id].clear()
 
     await bot.process_commands(message)
 
