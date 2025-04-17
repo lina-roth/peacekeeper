@@ -40,6 +40,7 @@ async def on_message(message):
         user_log.append(now)
 
         if len(user_log) >= MESSAGE_LIMIT and now - user_log[0] <= TIME_WINDOW:
+            await message.channel.send("🛡️ Peacekeeper activated!")
             await spam_channel_with_tenor_gifs(message.channel)
             user_message_log[message.author.id].clear()
 
