@@ -18,6 +18,7 @@ MESSAGE_LIMIT = int(os.getenv("MESSAGE_LIMIT", 5))
 TIME_WINDOW = int(os.getenv("TIME_WINDOW", 10))
 SPAM_AMOUNT = int(os.getenv("SPAM_AMOUNT", 5))
 MINIMUM_MESSAGE_PER_USER = int(os.getenv("MINIMUM_MESSAGE_PER_USER", 1))
+MONITORED_CHANNEL_ID = int(os.getenv("MONITORED_CHANNEL_ID"))
 TENOR_API_KEY = os.getenv("TENOR_API_KEY")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
@@ -39,26 +40,26 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    now = time.time()
+    if message.channel.id != MONITORED_CHANNEL_ID:
+        return  # Only monitor the specified channel
 
     if message.author.id in MONITORED_USERS:
-        user_last_messages[message.author.id].append(now)
+        now = time.time()
+        user_log = user_message_log[message.author.id]
+        user_log.append(now)
 
-        # Clean up old messages outside the time window
-        for user_id in MONITORED_USERS:
-            user_last_messages[user_id] = [
-                ts for ts in user_last_messages[user_id] if now - ts <= TIME_WINDOW
-            ]
-
-        # Check if each user has sent enough messages in the time window
-        if sum(len(user_message_log[uid]) for uid in MONITORED_USERS) >= MESSAGE_LIMIT:
-            if all(len(user_message_log[uid]) >= MINIMUM_MESSAGE_PER_USER for uid in MONITORED_USERS):
-                await message.channel.send("Peacekeeper activated 🕊️")
-                await spam_channel_with_tenor_gifs(message.channel)
-                for uid in MONITORED_USERS:
-                    user_message_log[uid].clear()
+        total_messages = sum(len(user_message_log[uid]) for uid in MONITORED_USERS)
+        if (
+            total_messages >= MESSAGE_LIMIT
+            and all(len(user_message_log[uid]) >= MINIMUM_MESSAGE_PER_USER for uid in MONITORED_USERS)
+        ):
+            await message.channel.send("Peacekeeper activated 🕊️")
+            await spam_channel_with_tenor_gifs(message.channel)
+            for uid in MONITORED_USERS:
+                user_message_log[uid].clear()
 
     await bot.process_commands(message)
+
 
 async def spam_channel_with_tenor_gifs(channel):
     async with aiohttp.ClientSession() as session:
