@@ -23,7 +23,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-user_message_log = defaultdict(lambda: deque(maxlen=MESSAGE_LIMIT))
+shared_message_log = deque(maxlen=MESSAGE_LIMIT)
 
 @bot.event
 async def on_ready():
@@ -36,13 +36,13 @@ async def on_message(message):
 
     if message.author.id in MONITORED_USERS:
         now = time.time()
-        user_log = user_message_log[message.author.id]
-        user_log.append(now)
+        shared_message_log.append(now)
 
-        if len(user_log) >= MESSAGE_LIMIT and now - user_log[0] <= TIME_WINDOW:
+        # Check if the oldest message is still within the window
+        if len(shared_message_log) >= MESSAGE_LIMIT and now - shared_message_log[0] <= TIME_WINDOW:
             await message.channel.send("🛡️ Peacekeeper activated!")
             await spam_channel_with_tenor_gifs(message.channel)
-            user_message_log[message.author.id].clear()
+            shared_message_log.clear()
 
     await bot.process_commands(message)
 
