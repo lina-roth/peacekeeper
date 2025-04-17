@@ -17,6 +17,7 @@ MONITORED_USERS = set(map(int, os.getenv("MONITORED_USERS", "").split(",")))
 MESSAGE_LIMIT = int(os.getenv("MESSAGE_LIMIT", 5))
 TIME_WINDOW = int(os.getenv("TIME_WINDOW", 10))
 SPAM_AMOUNT = int(os.getenv("SPAM_AMOUNT", 5))
+MINIMUM_MESSAGE_PER_USER = int(os.getenv("MINIMUM_MESSAGE_PER_USER", 1))
 TENOR_API_KEY = os.getenv("TENOR_API_KEY")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 
@@ -49,14 +50,13 @@ async def on_message(message):
                 ts for ts in user_last_messages[user_id] if now - ts <= TIME_WINDOW
             ]
 
-        # Check if all users have at least one recent message
-        if all(len(user_last_messages[user_id]) > 0 for user_id in MONITORED_USERS):
-            await message.channel.send("🛡️ Peacekeeper activated!")
-            await spam_channel_with_tenor_gifs(message.channel)
-
-            # Clear logs to prevent immediate retrigger
-            for user_id in MONITORED_USERS:
-                user_last_messages[user_id].clear()
+        # Check if each user has sent enough messages in the time window
+        if sum(len(user_message_log[uid]) for uid in MONITORED_USERS) >= MESSAGE_LIMIT:
+            if all(len(user_message_log[uid]) >= MINIMUM_MESSAGE_PER_USER for uid in MONITORED_USERS):
+                await message.channel.send("Peacekeeper activated 🕊️")
+                await spam_channel_with_tenor_gifs(message.channel)
+                for uid in MONITORED_USERS:
+                    user_message_log[uid].clear()
 
     await bot.process_commands(message)
 
